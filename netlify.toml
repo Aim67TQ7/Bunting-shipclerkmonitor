@@ -1,0 +1,26 @@
+[build]
+  publish = "build"
+  command = "npm run build"
+
+# Handle SPA routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Security headers modified to allow iframe embedding
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Allow iframe embedding by changing X-Frame-Options
+    X-Frame-Options = "ALLOW-FROM https://example.com" # Replace with the domain that will embed your app
+    # Alternative: Remove X-Frame-Options completely to allow embedding from any site
+    # X-Frame-Options = null
+    
+    X-XSS-Protection = "1; mode=block"
+    # Modify CSP to allow iframe embedding
+    Content-Security-Policy = "default-src 'self' *.netlify.app; frame-ancestors 'self' https://example.com; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' cdn.tailwindcss.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' cdn.tailwindcss.com; connect-src 'self';"
+
+# Define build environment variables (if needed)
+[build.environment]
+  NODE_VERSION = "18"
