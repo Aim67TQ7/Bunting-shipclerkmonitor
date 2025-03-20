@@ -5,7 +5,7 @@ import _ from 'lodash';
 import { Camera } from 'lucide-react';
 
 function App() {
-  const [data, setData] = useState([]);
+  const [, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fileUploaded, setFileUploaded] = useState(false);
   const [stats, setStats] = useState({
