@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PieChart, Pie, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
+import { PieChart, Pie, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import Papa from 'papaparse';
 import _ from 'lodash';
 import { Camera } from 'lucide-react';
