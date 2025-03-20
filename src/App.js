@@ -9,16 +9,15 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [fileUploaded, setFileUploaded] = useState(false);
   const [stats, setStats] = useState({
-    totalOrders: 0,
-    totalValue: 0,
-    avgValue: 0,
-    releasedOrders: 0,
-    changesOrders: 0,
-    topCountries: []
+    totalOrderValue: 0,
+    avgOrderValue: 0,
+    releasedValue: 0,
+    changesValue: 0,
+    topCountriesValue: []
   });
   const [upcomingReleases, setUpcomingReleases] = useState([]);
-  const [ordersByCountry, setOrdersByCountry] = useState([]);
-  const [dateDistribution, setDateDistribution] = useState([]);
+  const [valueByCountry, setValueByCountry] = useState([]);
+  const [dateValueDistribution, setDateValueDistribution] = useState([]);
   const [orderValueRanges, setOrderValueRanges] = useState([]);
   const dashboardRef = useRef(null);
 
@@ -105,7 +104,7 @@ function App() {
       const imgHeight = canvas.height * imgWidth / canvas.width;
       
       pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
-      pdf.save('shipclerk_dashboard.pdf');
+      pdf.save('financial_dashboard.pdf');
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Error generating PDF. See console for details.');
@@ -116,33 +115,39 @@ function App() {
     // Set the original data
     setData(rawData);
     
-    // Calculate basic stats
+    // Calculate basic financial stats
+    const totalOrderValue = _.sumBy(rawData, order => order["Order Amt"] || 0);
     const totalOrders = rawData.length;
-    const orderValues = rawData.map(order => order["Order Amt"] || 0);
-    const totalValue = _.sum(orderValues);
-    const avgValue = totalValue / totalOrders;
+    const avgOrderValue = totalOrderValue / totalOrders;
     
-    // Count order statuses
-    const releasedOrders = rawData.filter(order => order.REL === true).length;
-    const changesOrders = rawData.filter(order => order.CH === true).length;
+    // Calculate financial values by status
+    const releasedValue = _.sumBy(rawData.filter(order => order.REL === true), order => order["Order Amt"] || 0);
+    const changesValue = _.sumBy(rawData.filter(order => order.CH === true), order => order["Order Amt"] || 0);
     
-    // Get top countries
-    const countryCount = _.countBy(rawData, 'Country');
-    const topCountries = Object.entries(countryCount)
-      .map(([country, count]) => ({ country, count }))
-      .sort((a, b) => b.count - a.count)
+    // Get top countries by value
+    const countryValues = {};
+    rawData.forEach(order => {
+      const country = order.Country;
+      const value = order["Order Amt"] || 0;
+      if (country) {
+        countryValues[country] = (countryValues[country] || 0) + value;
+      }
+    });
+    
+    const topCountriesValue = Object.entries(countryValues)
+      .map(([country, value]) => ({ country, value }))
+      .sort((a, b) => b.value - a.value)
       .slice(0, 5);
     
     setStats({
-      totalOrders,
-      totalValue,
-      avgValue,
-      releasedOrders,
-      changesOrders,
-      topCountries
+      totalOrderValue,
+      avgOrderValue,
+      releasedValue,
+      changesValue,
+      topCountriesValue
     });
     
-    // Prepare upcoming releases data
+    // Prepare upcoming releases data with their values
     const today = new Date();
     
     const upcoming = rawData
@@ -162,47 +167,54 @@ function App() {
     
     setUpcomingReleases(upcoming);
     
-    // Prepare orders by country data
-    const ordersByCountryData = Object.entries(countryCount)
-      .map(([country, count]) => ({ country, count }))
-      .sort((a, b) => b.count - a.count);
+    // Prepare value by country data
+    const valueByCountryData = Object.entries(countryValues)
+      .map(([country, value]) => ({ country, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
     
-    setOrdersByCountry(ordersByCountryData);
+    setValueByCountry(valueByCountryData);
     
-    // Prepare date distribution data
-    const dateCount = {};
+    // Prepare date-based value distribution
+    const dateValues = {};
     rawData.forEach(order => {
       if (order.NextRelDt) {
         const datePart = order.NextRelDt.split(' ')[0];
-        dateCount[datePart] = (dateCount[datePart] || 0) + 1;
+        const value = order["Order Amt"] || 0;
+        dateValues[datePart] = (dateValues[datePart] || 0) + value;
       }
     });
     
-    const dateDistData = Object.entries(dateCount)
-      .map(([date, count]) => ({ date, count }))
+    const dateValueData = Object.entries(dateValues)
+      .map(([date, value]) => ({ date, value }))
       .sort((a, b) => new Date(a.date) - new Date(b.date))
       .slice(0, 15);
     
-    setDateDistribution(dateDistData);
+    setDateValueDistribution(dateValueData);
     
     // Prepare order value ranges
     const ranges = [
-      { range: '$0-$1K', count: 0 },
-      { range: '$1K-$5K', count: 0 },
-      { range: '$5K-$10K', count: 0 },
-      { range: '$10K-$20K', count: 0 },
-      { range: '$20K-$50K', count: 0 },
-      { range: '$50K+', count: 0 }
+      { range: '$0-$1K', count: 0, value: 0 },
+      { range: '$1K-$5K', count: 0, value: 0 },
+      { range: '$5K-$10K', count: 0, value: 0 },
+      { range: '$10K-$20K', count: 0, value: 0 },
+      { range: '$20K-$50K', count: 0, value: 0 },
+      { range: '$50K+', count: 0, value: 0 }
     ];
     
     rawData.forEach(order => {
       const value = order["Order Amt"] || 0;
-      if (value < 1000) ranges[0].count++;
-      else if (value < 5000) ranges[1].count++;
-      else if (value < 10000) ranges[2].count++;
-      else if (value < 20000) ranges[3].count++;
-      else if (value < 50000) ranges[4].count++;
-      else ranges[5].count++;
+      let rangeIndex = 0;
+      
+      if (value < 1000) rangeIndex = 0;
+      else if (value < 5000) rangeIndex = 1;
+      else if (value < 10000) rangeIndex = 2;
+      else if (value < 20000) rangeIndex = 3;
+      else if (value < 50000) rangeIndex = 4;
+      else rangeIndex = 5;
+      
+      ranges[rangeIndex].count++;
+      ranges[rangeIndex].value += value;
     });
     
     setOrderValueRanges(ranges);
@@ -269,34 +281,51 @@ function App() {
     <div className="p-6 bg-gray-50">
       {renderFileControls()}
       <div ref={dashboardRef}>
-        <h1 className="text-2xl font-bold mb-6 text-center">ShipClerk Monitoring Dashboard</h1>
+        <h1 className="text-2xl font-bold mb-6 text-center">ShipClerk Financial Dashboard</h1>
       
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-sm font-medium text-gray-500">Total Orders</h2>
-            <p className="text-2xl font-bold">{stats.totalOrders}</p>
+            <h2 className="text-sm font-medium text-gray-500">Total Order Value</h2>
+            <p className="text-2xl font-bold">${stats.totalOrderValue.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+            <p className="text-sm text-gray-600 mt-2">Average Order: ${stats.avgOrderValue.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
+          </div>
+          
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h2 className="text-sm font-medium text-gray-500">Status Value Breakdown</h2>
             <div className="flex justify-between mt-2">
-              <span className="text-green-600 text-sm">Released: {stats.releasedOrders}</span>
-              <span className="text-orange-500 text-sm">Changes: {stats.changesOrders}</span>
+              <span className="text-green-600 text-sm">Released: ${stats.releasedValue.toLocaleString(undefined, {maximumFractionDigits: 2})}</span>
+              <span className="text-orange-500 text-sm">Changes: ${stats.changesValue.toLocaleString(undefined, {maximumFractionDigits: 2})}</span>
+            </div>
+            <div className="h-12 mt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={[
+                    { name: 'Released', value: stats.releasedValue },
+                    { name: 'Changes', value: stats.changesValue }
+                  ]}
+                  layout="vertical"
+                >
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="name" type="category" hide />
+                  <Bar dataKey="value" fill="#8884d8">
+                    <Cell fill="#4caf50" />
+                    <Cell fill="#ff9800" />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </div>
           
           <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-sm font-medium text-gray-500">Total Order Value</h2>
-            <p className="text-2xl font-bold">${stats.totalValue.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
-            <p className="text-sm text-gray-600 mt-2">Avg: ${stats.avgValue.toLocaleString(undefined, {maximumFractionDigits: 2})}</p>
-          </div>
-          
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-sm font-medium text-gray-500">Status Distribution</h2>
+            <h2 className="text-sm font-medium text-gray-500">Value Distribution</h2>
             <div className="h-16 mt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={[
-                      { name: 'Released', value: stats.releasedOrders },
-                      { name: 'Changes', value: stats.changesOrders }
+                      { name: 'Released', value: stats.releasedValue },
+                      { name: 'Changes', value: stats.changesValue }
                     ]}
                     cx="50%"
                     cy="50%"
@@ -308,7 +337,7 @@ function App() {
                     <Cell fill="#4caf50" />
                     <Cell fill="#ff9800" />
                   </Pie>
-                  <Tooltip />
+                  <Tooltip formatter={(value) => [`$${value.toLocaleString(undefined, {maximumFractionDigits: 2})}`, 'Value']}/>
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -317,40 +346,40 @@ function App() {
         
         {/* Charts Row 1 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {/* Orders by Country */}
+          {/* Value by Country */}
           <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-medium mb-4">Orders by Country</h2>
+            <h2 className="text-lg font-medium mb-4">Order Value by Country</h2>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={ordersByCountry.slice(0, 8)}
+                  data={valueByCountry}
                   layout="vertical"
                   margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
+                  <XAxis type="number" tickFormatter={(value) => `$${value.toLocaleString(undefined, {maximumFractionDigits: 0})}`}/>
                   <YAxis dataKey="country" type="category" width={80} />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#8884d8" />
+                  <Tooltip formatter={(value) => [`$${value.toLocaleString(undefined, {maximumFractionDigits: 2})}`, 'Value']}/>
+                  <Bar dataKey="value" fill="#8884d8" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
           
-          {/* Release Date Distribution */}
+          {/* Release Value By Date */}
           <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-medium mb-4">Upcoming Release Dates</h2>
+            <h2 className="text-lg font-medium mb-4">Upcoming Release Values</h2>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
-                  data={dateDistribution}
+                  data={dateValueDistribution}
                   margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" angle={-45} textAnchor="end" height={60} />
-                  <YAxis />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="count" stroke="#8884d8" fill="#8884d8" />
+                  <YAxis tickFormatter={(value) => `$${value.toLocaleString(undefined, {maximumFractionDigits: 0})}`}/>
+                  <Tooltip formatter={(value) => [`$${value.toLocaleString(undefined, {maximumFractionDigits: 2})}`, 'Value']}/>
+                  <Area type="monotone" dataKey="value" stroke="#8884d8" fill="#8884d8" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -361,7 +390,7 @@ function App() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* Order Value Distribution */}
           <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-medium mb-4">Order Value Distribution</h2>
+            <h2 className="text-lg font-medium mb-4">Order Value Ranges</h2>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -370,9 +399,9 @@ function App() {
                 >
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="range" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#82ca9d">
+                  <YAxis yAxisId="left" orientation="left" tickFormatter={(value) => `$${value.toLocaleString(undefined, {maximumFractionDigits: 0})}`}/>
+                  <Tooltip formatter={(value, name) => [name === 'value' ? `$${value.toLocaleString(undefined, {maximumFractionDigits: 2})}` : value, name === 'value' ? 'Total Value' : 'Order Count']}/>
+                  <Bar yAxisId="left" dataKey="value" fill="#82ca9d" name="Total Value">
                     {orderValueRanges.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
@@ -382,36 +411,36 @@ function App() {
             </div>
           </div>
           
-          {/* Top Countries Pie Chart */}
+          {/* Top Countries by Value Pie Chart */}
           <div className="bg-white p-4 rounded-lg shadow">
-            <h2 className="text-lg font-medium mb-4">Order Distribution by Country</h2>
+            <h2 className="text-lg font-medium mb-4">Value Distribution by Country</h2>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={stats.topCountries}
+                    data={stats.topCountriesValue}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
                     outerRadius={80}
                     fill="#8884d8"
-                    dataKey="count"
-                    label={({ country, count, percent }) => `${country}: ${(percent * 100).toFixed(0)}%`}
+                    dataKey="value"
+                    label={({ country, value, percent }) => `${country}: ${(percent * 100).toFixed(0)}%`}
                   >
-                    {stats.topCountries.map((entry, index) => (
+                    {stats.topCountriesValue.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value, name, props) => [`${value} orders`, props.payload.country]} />
+                  <Tooltip formatter={(value, name, props) => [`$${value.toLocaleString(undefined, {maximumFractionDigits: 2})}`, props.payload.country]} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </div>
         </div>
         
-        {/* Upcoming Releases Table */}
+        {/* Upcoming Releases Table - With Value Focus */}
         <div className="bg-white p-4 rounded-lg shadow">
-          <h2 className="text-lg font-medium mb-4">Upcoming Releases</h2>
+          <h2 className="text-lg font-medium mb-4">Upcoming Releases by Value</h2>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -419,16 +448,18 @@ function App() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Release Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {upcomingReleases.map((order, index) => (
+                {upcomingReleases
+                  .sort((a, b) => b.value - a.value) // Sort by value instead of date
+                  .map((order, index) => (
                   <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.orderNumber}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.company}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.releaseDate}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${order.value.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${order.value.toLocaleString(undefined, {maximumFractionDigits: 2})}</td>
                   </tr>
                 ))}
               </tbody>
