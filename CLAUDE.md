@@ -5,27 +5,27 @@
 **Status:** In Transition
 
 ## What This Was
-Bunting Magnetics tool — likely a single-purpose app for a specific Bunting workflow
+BuntingGPT shipping clerk — order tracking and shipment management
 
 ## Current State
-Deprecated — function should be handled by agent. Last pushed 2025-03-20.
+Function replaceable by agent — last pushed 2025-03-20
 
 ## Agent Replacement
 **Agent Name:** PENDING
-**Lives On:** Maggie or Pete VPS (TBD)
-**Orchestrator:** n8n webhook to ERP query workflow
-**Endpoint or Trigger:** N/A
+**Lives On:** Maggie or Pete VPS (to be determined during build)
+**Orchestrator:** n8n webhook → ERP query
+**Endpoint or Trigger:** PENDING
 **Supabase Table:** N/A
 
 ## Handoff Notes
-This repo's core function was: Bunting-specific: Shipping/logistics management. The recommended replacement pattern is: n8n webhook to ERP query workflow. Check ORC skill list at https://orc.gp3.app/skills before building anything new.
+Core function: Track orders, manage shipping logistics, monitor deliveries. Recommended replacement: n8n webhook → ERP query. Verify at https://orc.gp3.app/skills before building anything new.
 
 ## Dependencies
-- None identified from README
+- None identified — check package.json for specifics
 
 ## Last Known Working State
 2025-03-20
 
 ## Claude's Notes
-- Bunting-specific tool — verify ORC can handle this function before archiving.
-- Agent replacement not yet built. This is a backlog item.
+- Bunting-specific — verify ORC handles this function before retiring.
+- Agent replacement not yet built. This is a backlog item for the GP3 platform team.
